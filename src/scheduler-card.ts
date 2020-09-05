@@ -163,20 +163,8 @@ export class SchedulerCard extends LitElement {
   }
 
   private _sliderChange(e: Event) {
-    let value = Number((e.currentTarget! as HTMLElement).getAttribute("value")!) / 100;
-    let min = 10;
-    let max = 25;
-    let steps = max - min;
-
-    let step = Math.round(value * (steps + 2));
-    let val = "";
-    if (step == 0) val = "off";
-    else if (step == (steps + 2)) val = "on";
-    else val = `${(step - 1 + min)}C`;
-
-    console.log(step);
-
-    this.shadowRoot.getElementById("currentValue")!.innerHTML = val;
+    let value = Number((e.currentTarget! as HTMLElement).getAttribute("value")!);
+    this.shadowRoot.getElementById("currentValue")!.innerHTML = String(value);
 
   }
 
@@ -189,7 +177,7 @@ export class SchedulerCard extends LitElement {
     let width = active_segment.offsetWidth;
     console.log(width);
     active_segment.style.width = `${Math.round(width / 2)}px`;
-    active_segment.insertAdjacentHTML('afterend', render(html`<div class="slider-segment" style="width: ${Math.round(width / 2)}px"></div>`));
+    //active_segment.insertAdjacentHTML('afterend', render(html`<div class="slider-segment" style="width: ${Math.round(width / 2)}px"></div>`));
   }
 
   private _sliderRemove() {
@@ -274,7 +262,15 @@ export class SchedulerCard extends LitElement {
           </mwc-button>
           </div>
           <div>
-            <ha-slider @change=${this._sliderChange}></ha-slider>
+                    <ha-labeled-slider
+                      caption="brightness"
+                      icon="hass:brightness-5"
+                      min="1"
+                      max="99"
+                      step="1"
+                      pin
+                      @change=${this._sliderChange}
+                    ></ha-labeled-slider>
           </div>
           <div id="currentValue"></div>
         </div>
