@@ -24,7 +24,7 @@ const plugins = [
   json(),
   babel(),
   commonjs(),
-  terser(),
+  //terser(),
 ];
 
 export default [
