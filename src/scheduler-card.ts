@@ -28,6 +28,7 @@ export class SchedulerCard extends LitElement {
   count = 0;
   shadowRoot: any;
   await_update: boolean = true;
+  sliderSettings: any;
 
   @property() private _hass?: HomeAssistant;
 
@@ -38,6 +39,16 @@ export class SchedulerCard extends LitElement {
     if (!this._hass) this.Config.LoadEntities(hass.states);
     this.update_entries(hass);
     this._hass = hass;
+
+    this.sliderSettings = {
+      segments: [
+        { duration: 12 },
+        { duration: 12 },
+      ],
+      stops: [
+        { time: 12 }
+      ]
+    }
   }
 
   protected update_entries(hass) {
@@ -54,7 +65,6 @@ export class SchedulerCard extends LitElement {
 
   protected awaitUpdate() {
     this.await_update = true;
-
   }
 
   @eventOptions({ passive: true })
@@ -69,10 +79,9 @@ export class SchedulerCard extends LitElement {
     let leftNeighbour: HTMLElement = parentElement.previousElementSibling as HTMLElement;
     let rightNeighbour: HTMLElement = parentElement.nextElementSibling as HTMLElement;
 
-    let toolTip = parentElement.getElementsByClassName("slider-thumb-tooltip")[0];
+    let toolTip = parentElement.getElementsByClassName("slider-thumb-tooltip")[0] as HTMLElement;
     const availableWidth = leftNeighbour.offsetWidth + rightNeighbour.offsetWidth;
     const trackWidth = trackCoords.width;
-    const stepSize = trackCoords.width / (24 * 4);
 
     let segments = Array.from(trackElement.getElementsByClassName("slider-segment")) as HTMLElement[];
     let segmentWidths = segments.map(e => e.offsetWidth);
@@ -86,12 +95,7 @@ export class SchedulerCard extends LitElement {
         xStart = xStart + segmentWidths[i];
       }
     });
-
-    console.log(segmentWidths);
-    console.log(xStart);
-    console.log(availableWidth);
-
-    var mouseMoveHandler = function (e: MouseEvent | TouchEvent) {
+    let mouseMoveHandler = function (e: MouseEvent | TouchEvent) {
       let startDragX;
       if (e instanceof TouchEvent) {
         startDragX = e.changedTouches[0].pageX;
@@ -110,42 +114,46 @@ export class SchedulerCard extends LitElement {
       rightNeighbour.style.width = `${Math.round(availableWidth - (x - xStart))}px`;
       leftNeighbour.style.width = `${Math.round(x - xStart)}px`;
 
-
-
-      console.log(x);
-
-      // let x1 = x;
-      // let x2 = (availableWidth - x);
-
-      // console.log(`${Math.round(x1)} ${Math.round(x2)}`);
-
       let pct = x / trackWidth;
-      let steps = Math.round(pct * (24 * 4));
+      let time = Math.round(pct * (24 * 4)) / 4;
 
-      // x = Math.round(x / stepSize) * stepSize;
+      toolTip.setAttribute("time", String(time));
 
-
-      let hours = Math.floor(steps / 4);
-      let minutes = (steps - hours * 4) * 15;
-      if (hours == 24) { hours = 23; minutes = 59; }
-      toolTip.innerHTML = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-
+      toolTip.dispatchEvent(new CustomEvent('update', { detail: { time: time } }));
 
     }
 
-    var mouseUpHandler = function () {
+    var mouseUpHandler = () => {
       window.removeEventListener('mousemove', mouseMoveHandler);
       window.removeEventListener('touchmove', mouseMoveHandler);
       window.removeEventListener('mouseup', mouseUpHandler);
       window.addEventListener('touchend', mouseUpHandler);
+
+      let new_stop = Number(toolTip.getAttribute("time"));
+
+      let time = 0;
+      let total_duration = this.sliderSettings.segments[segmentIndex].duration + this.sliderSettings.segments[segmentIndex + 1].duration;
+
+      let start_time = (segmentIndex > 0) ? this.sliderSettings.stops[segmentIndex - 1].time : 0;
+
+      let stops = [... this.sliderSettings.stops];
+      stops[segmentIndex] = { time: new_stop };
+      this.sliderSettings.stops = stops;
+
+      let segments = [... this.sliderSettings.segments]
+      segments[segmentIndex] = { duration: (new_stop - start_time) };
+      segments[segmentIndex + 1] = { duration: (total_duration - (new_stop - start_time)) };
+      this.sliderSettings.segments = segments;
+      mouseMoveHandler = () => { };
+
     }
 
     window.addEventListener('mouseup', mouseUpHandler);
     window.addEventListener('touchend', mouseUpHandler);
     window.addEventListener('mousemove', mouseMoveHandler);
     window.addEventListener('touchmove', mouseMoveHandler);
-
   }
+
 
   private _handleSegmentClick(e) {
     let segment = e.target as HTMLElement;
@@ -158,52 +166,124 @@ export class SchedulerCard extends LitElement {
     segment.classList.add("active");
 
 
-
-
-  }
-
-  private _sliderChange(e: Event) {
-    let value = Number((e.currentTarget! as HTMLElement).getAttribute("value")!);
-    this.shadowRoot.getElementById("currentValue")!.innerHTML = String(value);
-
   }
 
   private _sliderAdd() {
     let segments = Array.from(this.shadowRoot.querySelectorAll(".slider-segment")) as HTMLElement[];
-    let active_segment: HTMLElement = segments[0];
-    segments.forEach(el => {
-      if (el.classList.contains("active")) active_segment = el;
+    let active_segment = -1;
+    segments.forEach((el, i) => {
+      if (el.classList.contains("active")) active_segment = i;
     });
-    let width = active_segment.offsetWidth;
-    console.log(width);
-    active_segment.style.width = `${Math.round(width / 2)}px`;
-    //active_segment.insertAdjacentHTML('afterend', render(html`<div class="slider-segment" style="width: ${Math.round(width / 2)}px"></div>`));
+    if (segments.length >= 10 || active_segment == -1) return;
+    let old_duration = this.sliderSettings.segments[active_segment].duration;
+
+    let start_time = 0;
+    this.sliderSettings.stops.forEach((el, i) => {
+      if (i < active_segment) start_time = el.time;
+    });
+
+    let new_time = start_time + old_duration / 2;
+    new_time = Math.round(new_time * 4) / 4;
+
+    let stops = [...this.sliderSettings.stops];
+    stops.splice(active_segment, 0, { time: new_time });
+    this.sliderSettings.stops = stops;
+
+    let allsegments = [...this.sliderSettings.segments];
+    allsegments.splice(active_segment, 1, {
+      duration: new_time - start_time
+    }, {
+      duration: old_duration - (new_time - start_time)
+    });
+    this.sliderSettings.segments = allsegments;
+    this.updateComplete.then(() => {
+      this.shadowRoot.querySelectorAll(".slider-thumb-tooltip").forEach((el, i) => {
+        el.dispatchEvent(new CustomEvent('update', { detail: { index: i } }));
+      });
+    });
+
+    this.requestUpdate();
   }
 
   private _sliderRemove() {
+    let segments = Array.from(this.shadowRoot.querySelectorAll(".slider-segment")) as HTMLElement[];
+    let active_segment = -1;
+    segments.forEach((el, i) => {
+      if (el.classList.contains("active")) active_segment = i;
+    });
+    if (segments.length == 2 || active_segment == -1) return;
+    let cutIndex = active_segment;
+    if (cutIndex == (segments.length - 1)) cutIndex--;
 
+    let new_duration = this.sliderSettings.segments[cutIndex].duration + this.sliderSettings.segments[cutIndex + 1].duration;
+
+    let stops = [...this.sliderSettings.stops];
+
+    stops.splice(cutIndex, 1);
+    this.sliderSettings.stops = stops;
+
+    let allsegments = [...this.sliderSettings.segments];
+
+    allsegments.splice(cutIndex, 2, {
+      duration: new_duration
+    });
+
+    this.sliderSettings.segments = allsegments;
+    this.updateComplete.then(() => {
+      this.shadowRoot.querySelectorAll(".slider-thumb-tooltip").forEach((el, i) => {
+        el.dispatchEvent(new CustomEvent('update', { detail: { index: i } }));
+      });
+    });
+    this.requestUpdate();
   }
 
   // private _DeleteMarker() {
 
   // }
+  protected getSliderSegments(): TemplateResult[] {
+    let output: TemplateResult[] = [];
+    this.sliderSettings.segments.forEach((el, i) => {
+      output.push(html`
+        <div class="slider-segment" @click="${this._handleSegmentClick}" style="width: ${el.duration / 24 * 100}%">
+          off
+        </div>
+      `);
+      if (i < this.sliderSettings.stops.length) {
+        let time = this.sliderSettings.stops[i].time;
+        let timeHours = Math.floor(time);
+        let timeMinutes = Math.round((time - timeHours) * 60);
+        output.push(html`
+        <div class="slider-thumb">
+          <ha-icon icon="hass:unfold-more-vertical"  @mousedown="${this._handleTouchStart}" @touchstart="${this._handleTouchStart}"></ha-icon>
+          <div class="slider-thumb-tooltip" value="time" @update="${this._updateMarker}">
+            ${String(timeHours).padStart(2, '0')}:${String(timeMinutes).padStart(2, '0')}
+          </div>
+        </div>`);
+      }
+    });
+    return output;
+  }
 
-  // private _AddMarker(e: MouseEvent | TouchEvent) {
-  //   let thumbElement: HTMLElement | null;
-  //   thumbElement = e.target as HTMLElement;
-  //   if (!thumbElement) return;
-  //   let parentElement = thumbElement.parentNode as HTMLElement;
-  //   let parparentElement = parentElement.parentNode as HTMLElement;
-  //   let rightNeighbour: HTMLElement = parparentElement.nextElementSibling as HTMLElement;
+  private _updateMarker(e: CustomEvent) {
+    let detail = e.detail;
+    let time = 0;
+    if (detail.hasOwnProperty('index')) {
+      let index = detail.index;
+      if (index >= this.sliderSettings.stops.length) return;
+      time = this.sliderSettings.stops[index].time;
+    } else if (detail.hasOwnProperty('time')) {
+      time = detail.time;
+    } else return;
+    let target = e.target as HTMLElement;
 
-  //   let thumbCode = parparentElement.outerHTML;
-  //   let width = rightNeighbour.offsetWidth;
-  //   rightNeighbour.style.width = `${Math.round(width / 2)}px`;
-  //   rightNeighbour.insertAdjacentHTML('afterend', `${thumbCode}<div class="slider-segment" style="width: ${Math.round(width / 2)}px"></div>`);
-  // }
+    let hours = Math.floor(time);
+    let minutes = Math.round((time - hours) * 60);
+    target.innerText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
 
   protected render(): TemplateResult {
     if (!this.selection.newItem && !this.selection.editItem) {
+
       return html`
       <ha-card>
         <div class="card-header">Scheduler</div>
@@ -211,14 +291,7 @@ export class SchedulerCard extends LitElement {
           <div class="slider-container">
             <div>
               <div class="slider-track">
-                <div class="slider-segment" @click="${this._handleSegmentClick}"></div>
-                <div class="slider-thumb">
-                  <ha-icon icon="hass:unfold-more-vertical"  @mousedown="${this._handleTouchStart}" @touchstart="${this._handleTouchStart}"></ha-icon>
-                  <div class="slider-thumb-tooltip">
-                      12:00
-                  </div>
-                </div>
-                <div class="slider-segment" @click="${this._handleSegmentClick}"></div>
+                ${this.getSliderSegments()}
               </div>
             </div>
             <div class="slider-legend">
@@ -237,12 +310,12 @@ export class SchedulerCard extends LitElement {
         <div class="card-section">
           <div class="header">Action</div>
           <div>
-          <mwc-button>
-            <ha-icon icon="hass:plus-circle-outline" class="padded-right" @click="${this._sliderAdd}"></ha-icon>
+          <mwc-button @click="${this._sliderAdd}">
+            <ha-icon icon="hass:plus-circle-outline" class="padded-right"></ha-icon>
             Add
           </mwc-button>
-          <mwc-button>
-            <ha-icon icon="hass:minus-circle-outline" class="padded-right" @click="${this._sliderRemove}"></ha-icon>
+          <mwc-button @click="${this._sliderRemove}">
+            <ha-icon icon="hass:minus-circle-outline" class="padded-right"></ha-icon>
             Remove
           </mwc-button>
           </div>
@@ -262,17 +335,8 @@ export class SchedulerCard extends LitElement {
           </mwc-button>
           </div>
           <div>
-                    <ha-labeled-slider
-                      caption="brightness"
-                      icon="hass:brightness-5"
-                      min="1"
-                      max="99"
-                      step="1"
-                      pin
-                      @change=${this._sliderChange}
-                    ></ha-labeled-slider>
+            <ha-paper-slider id="level" pin min="0" max="100" step="1"></ha-paper-slider>
           </div>
-          <div id="currentValue"></div>
         </div>
         <div class="card-section last">
           <mwc-button outlined @click="${() => { this.newItem() }}">Add item</mwc-button>

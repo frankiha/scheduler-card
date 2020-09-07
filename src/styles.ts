@@ -214,7 +214,7 @@ export const styles = css`
       }
 
       div.slider-track {
-        height: 36px;
+        height: 45px;
         width: 100%;
         //background: var(--light-primary-color);
         //border-radius: 15px;
@@ -226,19 +226,22 @@ export const styles = css`
         width: 50%;
         display: flex;
         background: var(--primary-color);
-        opacity: 0.5;
+        opacity: 0.85;
         z-index: 1;
         //margin: 3px;
         cursor: pointer;
-      }
-
-      div.slider-segment:hover {
-        opacity: 0.7;
+        color: var(--text-primary-color);
+        justify-content: center;
+        align-items: center;
       }
 
       div.slider-segment.active {
-        opacity: 0.7;
+        opacity: 0.85;
         background: var(--accent-color);
+      }
+
+      div.slider-segment:hover, div.slider-segment.active:hover {
+        opacity: 1;
       }
       
       div.slider-track div.slider-segment:first-of-type {
@@ -254,21 +257,21 @@ export const styles = css`
       div.slider-thumb {
         height: 100%;
         width: 2px;
-        background: var(--primary-text-color);
+        background: var(--text-primary-color);
         display: flex;
         cursor: pointer;
         z-index: 5;
+        margin: 0px -1px;
       }
 
       div.slider-thumb ha-icon {
         background: white;
-        width: 20px;
-        height: 20px;
-        --mdc-icon-size: 20px;
-        line-height: 16px;
+        width: 26px;
+        height: 26px;
+        --mdc-icon-size: 26px;
         border-radius: 100%;
-        margin-left: -10px;
-        margin-top: 8px;
+        margin-left: -12px;
+        margin-top: 10px;
       }
 
       div.slider-legend {
